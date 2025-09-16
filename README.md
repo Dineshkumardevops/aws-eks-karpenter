@@ -1,3 +1,7 @@
+# Prerequisites
+ - An Instance with aws cli access with necessary tools installed on it (kubectl, eksctl, helm)
+ - Ref:- https://docs.aws.amazon.com/eks/latest/best-practices/karpenter.html
+
 # AWS EKS + Karpenter POC
 
 ## Objective
