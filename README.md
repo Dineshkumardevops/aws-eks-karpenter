@@ -3,20 +3,27 @@
  - Ref:- https://docs.aws.amazon.com/eks/latest/best-practices/karpenter.html
 
 ## install kubectl
+```bash
 curl -LO "https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl"
 chmod +x kubectl
 sudo mv kubectl /usr/local/bin/
 kubectl version --client
+```
+
 
 ## install eksctl
+```bash
 curl -sL "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" -o eksctl.tar.gz
 tar -xzf eksctl.tar.gz -C /tmp
 sudo mv /tmp/eksctl /usr/local/bin
 eksctl version
+```
 
 ## install helm
+```bash
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 helm version
+```
 
 
 # AWS EKS + Karpenter POC
