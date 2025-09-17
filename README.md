@@ -55,46 +55,49 @@ Learn How
 The following script will deploy an EKS cluster using the eksctl tool and set up some Karpenter-related resources, like the EventBridge rules for monitoring spot interruption events. The script will enable Fargate support, which is how we’ll run Karpenter with a serverless approach for simplicity. We need a worker node running for hosting our Karpenter pods, and leveraging Fargate simplifies this initial bootstrapping step. IAM roles are configured automatically to allow Karpenter the appropriate IAM permissions to manage our EC2 instances. No changes are required to the script below, but administrators are encouraged to review the script to understand what is being executed by eksctl and how the ClusterConfig resource works:
 
 ```bash
-# Download the cloud formation template to create a KarpenterNodeRole
+# Download the CloudFormation template to create a KarpenterNodeRole
 curl -fsSL https://raw.githubusercontent.com/aws/karpenter-provider-aws/v"${KARPENTER_VERSION}"/website/content/en/preview/getting-started/getting-started-with-karpenter/cloudformation.yaml > "${TEMPOUT}"
 
 # Create the KarpenterNodeRole
 aws cloudformation deploy \
---stack-name "${CLUSTER_NAME}" \
---template-file "${TEMPOUT}" \
---capabilities CAPABILITY_NAMED_IAM \
---parameter-overrides "ClusterName=${CLUSTER_NAME}"
+  --stack-name "${CLUSTER_NAME}" \
+  --template-file "${TEMPOUT}" \
+  --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides "ClusterName=${CLUSTER_NAME}"
 
 # Create a new EKS cluster
-eksctl create cluster -f -  <<EOF
+eksctl create cluster -f - <<EOF
 ---
 apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 metadata:
-	name: ${CLUSTER_NAME}
-	region: ${AWS_DEFAULT_REGION}
-	version: "${K8S_VERSION}"
-	tags:
-		karpenter.sh/discovery: ${CLUSTER_NAME}
+  name: ${CLUSTER_NAME}
+  region: ${AWS_DEFAULT_REGION}
+  version: "${K8S_VERSION}"
+  tags:
+    karpenter.sh/discovery: ${CLUSTER_NAME}
+
 iam:
-	withOIDC: true
-	serviceAccounts:
-	- metadata:
-		name: karpenter
-		namespace: "${KARPENTER_NAMESPACE}"
-	  roleName: ${CLUSTER_NAME}-karpenter
-	  attachPolicyARNs:
-	  - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: karpenter
+        namespace: "${KARPENTER_NAMESPACE}"
+      roleName: ${CLUSTER_NAME}-karpenter
+      attachPolicyARNs:
+        - arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:policy/KarpenterControllerPolicy-${CLUSTER_NAME}
+
 iamIdentityMappings:
-	- arn: "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
-	  username: system:node:{{EC2PrivateDNSName}}
-	  groups:
-		- system:bootstrappers
-		- system:nodes
+  - arn: "arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/KarpenterNodeRole-${CLUSTER_NAME}"
+    username: system:node:{{EC2PrivateDNSName}}
+    groups:
+      - system:bootstrappers
+      - system:nodes
+
 fargateProfiles:
-	- name: karpenter
-	  selectors:
-	  - namespace: "${KARPENTER_NAMESPACE}"
+  - name: karpenter
+    selectors:
+      - namespace: "${KARPENTER_NAMESPACE}"
 EOF
 
 # Retrieve the new cluster's details
@@ -102,9 +105,12 @@ export CLUSTER_ENDPOINT="$(aws eks describe-cluster --name "${CLUSTER_NAME}" --q
 export KARPENTER_IAM_ROLE_ARN="arn:${AWS_PARTITION}:iam::${AWS_ACCOUNT_ID}:role/${CLUSTER_NAME}-karpenter"
 
 # Print the cluster details to the screen
-echo "${CLUSTER_ENDPOINT} ${KARPENTER_IAM_ROLE_ARN}"
+echo "Cluster endpoint: ${CLUSTER_ENDPOINT}"
+echo "Karpenter IAM role: ${KARPENTER_IAM_ROLE_ARN}"
 
+# Create Spot service-linked role if not already present
 aws iam create-service-linked-role --aws-service-name spot.amazonaws.com || true
+
 ```
 
 ---
@@ -141,51 +147,52 @@ cat <<EOF | envsubst | kubectl apply -f -
 apiVersion: karpenter.sh/v1beta1
 kind: NodePool
 metadata:
-	name: team-1
+  name: team-1
 spec:
-	template:
-		spec:
-			taints:
-				- key: team-1-nodes
-				  effect: NoSchedule
-			requirements:
-				- key: kubernetes.io/arch
-				  operator: In
-				  values: ["amd64"]
-			nodeClassRef:
-				name: default
+  template:
+    spec:
+      taints:
+        - key: team-1-nodes
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+      nodeClassRef:
+        name: default
 ---
 apiVersion: karpenter.sh/v1beta1
 kind: NodePool
 metadata:
-	name: team-2
+  name: team-2
 spec:
-	template:
-		spec:
-			taints:
-				- key: team-2-nodes
-				  effect: NoSchedule
-			requirements:
-				- key: kubernetes.io/arch
-				  operator: In
-				  values: ["amd64"]
-			nodeClassRef:
-				name: default
+  template:
+    spec:
+      taints:
+        - key: team-2-nodes
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+      nodeClassRef:
+        name: default
 ---
 apiVersion: karpenter.k8s.aws/v1beta1
 kind: EC2NodeClass
 metadata:
-	name: default
+  name: default
 spec:
-	amiFamily: AL2 # Amazon Linux 2
-	role: "KarpenterNodeRole-${CLUSTER_NAME}"
-	subnetSelectorTerms:
-		- tags:
-			karpenter.sh/discovery: "${CLUSTER_NAME}"
-	securityGroupSelectorTerms:
-		- tags:
-			karpenter.sh/discovery: "${CLUSTER_NAME}"
+  amiFamily: AL2 # Amazon Linux 2
+  role: "KarpenterNodeRole-${CLUSTER_NAME}"
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "${CLUSTER_NAME}"
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: "${CLUSTER_NAME}"
 EOF
+
 ```
 
 ---
@@ -199,37 +206,38 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
 metadata:
-	name: team-1-nginx
+  name: team-1-nginx
 spec:
-	containers:
-	- name: nginx
-	  image: nginx
-	  resources:
-	   requests:
-			cpu: "0.5"
-			memory: 300Mi
-	tolerations:
-	- key: "team-1-nodes"
-	  operator: "Exists"
-	  effect: "NoSchedule"
+  containers:
+  - name: nginx
+    image: nginx
+    resources:
+      requests:
+        cpu: "0.5"
+        memory: 300Mi
+  tolerations:
+  - key: "team-1-nodes"
+    operator: "Exists"
+    effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-	name: team-2-nginx
+  name: team-2-nginx
 spec:
-	containers:
-	- name: nginx
-	  image: nginx
-	  resources:
-	   requests:
-			cpu: "0.5"
-			memory: 300Mi
-	tolerations:
-	- key: "team-2-nodes"
-	  operator: "Exists"
-	  effect: "NoSchedule"
+  containers:
+  - name: nginx
+    image: nginx
+    resources:
+      requests:
+        cpu: "0.5"
+        memory: 300Mi
+  tolerations:
+  - key: "team-2-nodes"
+    operator: "Exists"
+    effect: "NoSchedule"
 EOF
+
 ```
 
 * Karpenter will detect pods unschedulable on Fargate nodes and provision EC2 nodes to fit the workloads.
