@@ -194,6 +194,8 @@ spec:
 EOF
 
 ```
+- kubectl get nodepools.karpenter.sh
+- kubectl get ec2nodeclasses.karpenter.k8s.aws
 
 ---
 
